@@ -1,16 +1,19 @@
 'use client';
 
-import { Theme, Container, Flex, Box, Text, Button, Card } from '@radix-ui/themes';
+import { Theme, Container, Flex, Box, Text, Button, Card, Spinner } from '@radix-ui/themes';
 import { useState, useEffect, useRef } from 'react';
-import { Phone, PhoneOff, PhoneCall } from 'lucide-react';
+import { PhoneOff, PhoneCall } from 'lucide-react';
 import Vapi from "@vapi-ai/web";
 
 export default function Playground() {
   const [isRecording, setIsRecording] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [messages, setMessages] = useState<Array<{ text: string; isUser: boolean }>>([]);
   const [vapi] = useState(() => new Vapi("aa08d2ca-16ef-499c-b921-6d130ac39436"));
   const assistantId = "fa4261ff-0490-4da6-bee7-fd8e1ec9b45b";
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [callDuration, setCallDuration] = useState(0);
+  const timerRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -19,6 +22,31 @@ export default function Playground() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  useEffect(() => {
+    if (isRecording) {
+      timerRef.current = setInterval(() => {
+        setCallDuration(prev => prev + 1);
+      }, 1000);
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+      setCallDuration(0);
+    }
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [isRecording]);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
 
   useEffect(() => {
     // Set up event listeners
@@ -44,6 +72,7 @@ export default function Playground() {
 
     vapi.on("error", (error) => {
       console.error("Vapi error:", error);
+      setIsConnecting(false);
     });
 
     return () => {
@@ -54,11 +83,14 @@ export default function Playground() {
   const toggleRecording = async () => {
     if (!isRecording) {
       try {
+        setIsConnecting(true);
         const call = await vapi.start(assistantId);
         console.log("Call started:", call);
         setIsRecording(true);
+        setIsConnecting(false);
       } catch (error) {
         console.error("Failed to start call:", error);
+        setIsConnecting(false);
       }
     } else {
       vapi.stop();
@@ -67,23 +99,23 @@ export default function Playground() {
   };
 
   return (
-    <Theme appearance="light" accentColor="blue" grayColor="slate" scaling="100%">
-      <Container size="2" className="h-screen flex flex-col bg-gray-50">
+    <Theme appearance="dark" accentColor="blue" grayColor="slate" scaling="100%">
+      <Container size="2" className="flex flex-col bg-neutral-800 min-h-screen">
         {/* Header */}
-        <Box className="sticky top-0 z-10 py-6 px-4 border-b border-gray-200 bg-white shadow-sm">
+        <Box className="sticky top-0 z-10 p-6 bg-neutral-800">
           <Flex justify="between" align="center">
             <Text size="5" weight="bold">
-              Groceries Assistant
+              Grocery Assistant
             </Text>
 
             {/* Call in progress */}
-            {isRecording && (
+            {(isRecording || isConnecting) && (
               <Flex align="center" gap="2" className="text-gray-400">
-                <div className="relative">
-                  <div className="absolute inset-0 rounded-full bg-gray-200 animate-ping opacity-75"></div>
-                  <Phone className="w-5 h-5 relative" />
-                </div>
-                <Text size="2" weight="medium">Call in progress</Text>
+                <Text size="2" weight="medium" className="font-mono">
+                  {isConnecting ? (
+                    <Spinner/>
+                  ) : formatTime(callDuration)}
+                </Text>
               </Flex>
             )}
 
@@ -93,11 +125,12 @@ export default function Playground() {
                 <Button
                   size="3"
                   variant="solid"
-                  color={isRecording ? "red" : "green"}
+                  color={isRecording || isConnecting ? "red" : "green"}
                   className={`w-16 h-16 rounded-full transition-all duration-200`}
                   onClick={toggleRecording}
+                  disabled={isConnecting}
                 >
-                  {isRecording ? (
+                  {isRecording || isConnecting ? (
                     <PhoneOff className="w-6 h-6 text-white" />
                   ) : (
                     <PhoneCall className="w-6 h-6 text-white" />
@@ -110,12 +143,15 @@ export default function Playground() {
 
         {/* Messages Area */}
         <Box className="flex-1 overflow-y-auto p-4 space-y-4">
+          {messages.length === 0 && !isConnecting && !isRecording && (
+            <Text align="center" as="div" className="p-12 text-neutral-500">You can start by calling me!</Text>
+          )}
           {messages.map((message, index) => (
             <Card key={index} className={`p-4 max-w-[80%] border-0 ${message.isUser
               ? 'ml-auto bg-green-200'
               : 'mr-auto bg-blue-200'
             }`}>
-              <Text>
+              <Text className="text-gray-800">
                 {message.text}
               </Text>
             </Card>
