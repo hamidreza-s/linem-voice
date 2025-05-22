@@ -2,7 +2,7 @@
 
 import { Theme, Container, Flex, Box, Text, Button, Card } from '@radix-ui/themes';
 import { useState, useEffect, useRef } from 'react';
-import { Mic, Square, Phone, PhoneOff, PhoneCall } from 'lucide-react';
+import { Phone, PhoneOff, PhoneCall } from 'lucide-react';
 import Vapi from "@vapi-ai/web";
 
 export default function Playground() {
